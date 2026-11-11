@@ -64,24 +64,33 @@ struct DotMatrixText: View {
 
     var body: some View {
         Canvas { ctx, _ in
-            var x: CGFloat = 0
-            for g in glyphs {
-                let cols = g.first?.count ?? 0
-                for (r, row) in g.enumerated() {
-                    for (c, ch) in row.enumerated() {
-                        let rect = CGRect(x: x + CGFloat(c) * step, y: CGFloat(r) * step, width: dot, height: dot)
-                        if ch == "1" {
-                            ctx.fill(Path(ellipseIn: rect), with: .color(color))
-                        } else if showOff {
-                            ctx.fill(Path(ellipseIn: rect), with: .color(color.opacity(0.07)))
-                        }
-                    }
-                }
-                x += CGFloat(cols + 1) * step
-            }
+            draw(in: &ctx)
         }
         .frame(width: width, height: height)
-        .accessibilityLabel(text)
+        .accessibilityLabel(Text(text))
+    }
+
+    private func draw(in ctx: inout GraphicsContext) {
+        let on = GraphicsContext.Shading.color(color)
+        let off = GraphicsContext.Shading.color(color.opacity(0.07))
+        let st: CGFloat = step
+        var x: CGFloat = 0
+        for g in glyphs {
+            let cols: Int = g.first?.count ?? 0
+            for (r, row) in g.enumerated() {
+                for (c, ch) in row.enumerated() {
+                    let px: CGFloat = x + CGFloat(c) * st
+                    let py: CGFloat = CGFloat(r) * st
+                    let rect = CGRect(x: px, y: py, width: dot, height: dot)
+                    if ch == "1" {
+                        ctx.fill(Path(ellipseIn: rect), with: on)
+                    } else if showOff {
+                        ctx.fill(Path(ellipseIn: rect), with: off)
+                    }
+                }
+            }
+            x += CGFloat(cols + 1) * st
+        }
     }
 }
 
@@ -92,36 +101,48 @@ struct SunDial: View {
 
     var body: some View {
         TimelineView(.animation) { tl in
-            let secs = tl.date.timeIntervalSince1970.truncatingRemainder(dividingBy: 60)
             Canvas { ctx, sz in
-                let c = CGPoint(x: sz.width / 2, y: sz.height / 2)
-                let R = min(sz.width, sz.height) / 2
-
-                let sun = R * 0.66
-                ctx.fill(Path(ellipseIn: CGRect(x: c.x - sun, y: c.y - sun, width: sun * 2, height: sun * 2)),
-                         with: .color(Theme.blood))
-
-                for i in 0..<60 where i % 5 == 0 {
-                    let a = Double(i) / 60 * 2 * .pi - .pi / 2
-                    let major = i % 15 == 0
-                    let len = R * (major ? 0.1 : 0.06)
-                    var p = Path()
-                    p.move(to: CGPoint(x: c.x + cos(a) * (R - 2), y: c.y + sin(a) * (R - 2)))
-                    p.addLine(to: CGPoint(x: c.x + cos(a) * (R - 2 - len), y: c.y + sin(a) * (R - 2 - len)))
-                    ctx.stroke(p, with: .color(major ? Theme.ash : Color(hex: 0x444444)),
-                               lineWidth: major ? 2 : 1)
-                }
-
-                let a = secs / 60 * 2 * .pi - .pi / 2
-                var hand = Path()
-                hand.move(to: CGPoint(x: c.x - cos(a) * R * 0.1, y: c.y - sin(a) * R * 0.1))
-                hand.addLine(to: CGPoint(x: c.x + cos(a) * R * 0.9, y: c.y + sin(a) * R * 0.9))
-                ctx.stroke(hand, with: .color(Theme.emeraldLight), lineWidth: 2)
-                ctx.fill(Path(ellipseIn: CGRect(x: c.x - 4, y: c.y - 4, width: 8, height: 8)),
-                         with: .color(Theme.emeraldLight))
+                SunDial.draw(in: &ctx, size: sz, date: tl.date)
             }
         }
         .frame(width: size, height: size)
+    }
+
+    private static func point(_ c: CGPoint, _ angle: CGFloat, _ r: CGFloat) -> CGPoint {
+        let x: CGFloat = c.x + CGFloat(cos(Double(angle))) * r
+        let y: CGFloat = c.y + CGFloat(sin(Double(angle))) * r
+        return CGPoint(x: x, y: y)
+    }
+
+    static func draw(in ctx: inout GraphicsContext, size sz: CGSize, date: Date) {
+        let c = CGPoint(x: sz.width / 2, y: sz.height / 2)
+        let R: CGFloat = min(sz.width, sz.height) / 2
+        let twoPi: CGFloat = 2 * CGFloat.pi
+        let quarter: CGFloat = CGFloat.pi / 2
+
+        let sun: CGFloat = R * 0.66
+        let sunRect = CGRect(x: c.x - sun, y: c.y - sun, width: sun * 2, height: sun * 2)
+        ctx.fill(Path(ellipseIn: sunRect), with: .color(Theme.blood))
+
+        let minor = Color(hex: 0x444444)
+        for i in stride(from: 0, to: 60, by: 5) {
+            let a: CGFloat = CGFloat(i) / 60 * twoPi - quarter
+            let major: Bool = i % 15 == 0
+            let len: CGFloat = major ? R * 0.1 : R * 0.06
+            var p = Path()
+            p.move(to: point(c, a, R - 2))
+            p.addLine(to: point(c, a, R - 2 - len))
+            ctx.stroke(p, with: .color(major ? Theme.ash : minor), lineWidth: major ? 2 : 1)
+        }
+
+        let secs: Double = date.timeIntervalSince1970.truncatingRemainder(dividingBy: 60)
+        let a: CGFloat = CGFloat(secs / 60) * twoPi - quarter
+        var hand = Path()
+        hand.move(to: point(c, a + CGFloat.pi, R * 0.1))
+        hand.addLine(to: point(c, a, R * 0.9))
+        ctx.stroke(hand, with: .color(Theme.emeraldLight), lineWidth: 2)
+        let dot = CGRect(x: c.x - 4, y: c.y - 4, width: 8, height: 8)
+        ctx.fill(Path(ellipseIn: dot), with: .color(Theme.emeraldLight))
     }
 }
 
@@ -150,12 +171,14 @@ struct FallingDrops: View {
     var body: some View {
         GeometryReader { g in
             ForEach(0..<points.count, id: \.self) { i in
-                let p = points[i]
+                let p: CGPoint = points[i]
+                let px: CGFloat = g.size.width * p.x
+                let py: CGFloat = g.size.height * p.y + (fall ? distance : 0)
                 Ellipse()
                     .fill(Theme.blood)
                     .overlay(Ellipse().stroke(Color.black, lineWidth: 0.6))
                     .frame(width: 6, height: 8)
-                    .position(x: g.size.width * p.x, y: g.size.height * p.y + (fall ? distance : 0))
+                    .position(x: px, y: py)
                     .opacity(fall ? 0 : 1)
                     .animation(.easeIn(duration: 1.9).delay(Double(i) * 0.9).repeatForever(autoreverses: false),
                                value: fall)

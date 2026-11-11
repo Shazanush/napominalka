@@ -5,32 +5,32 @@ import UserNotifications
 /// (звук до 29 сек), пока не отключишь через Face ID.
 @MainActor
 enum Scheduler {
-    static let chainCount = 20                 // 20 × 30 сек = 10 минут звона
-    static let chainInterval: TimeInterval = 30
-    static var chainWindow: TimeInterval { Double(chainCount) * chainInterval }
+    nonisolated static let chainCount = 20                 // 20 × 30 сек = 10 минут звона
+    nonisolated static let chainInterval: TimeInterval = 30
+    nonisolated static var chainWindow: TimeInterval { Double(chainCount) * chainInterval }
     static let maxPending = 60                 // iOS держит максимум 64 ожидающих уведомления
 
     private static var running: Task<Void, Never>?
 
-    static func occurrenceKey(_ id: UUID, _ occ: Date) -> String {
+    nonisolated static func occurrenceKey(_ id: UUID, _ occ: Date) -> String {
         "\(id.uuidString)|\(Int(occ.timeIntervalSince1970))"
     }
 
-    static func chainIDs(_ id: UUID, _ occ: Date) -> [String] {
+    nonisolated static func chainIDs(_ id: UUID, _ occ: Date) -> [String] {
         let key = occurrenceKey(id, occ)
         return (0..<chainCount).map { "\(key)#\($0)" }
     }
 
     // MARK: отключённые срабатывания
 
-    private static let dismissedKey = "dismissed.v1"
+    nonisolated private static let dismissedKey = "dismissed.v1"
 
-    static func isDismissed(_ id: UUID, _ occ: Date) -> Bool {
+    nonisolated static func isDismissed(_ id: UUID, _ occ: Date) -> Bool {
         let set = UserDefaults.standard.stringArray(forKey: dismissedKey) ?? []
         return set.contains(occurrenceKey(id, occ))
     }
 
-    static func markDismissed(_ id: UUID, _ occ: Date) {
+    nonisolated static func markDismissed(_ id: UUID, _ occ: Date) {
         var set = UserDefaults.standard.stringArray(forKey: dismissedKey) ?? []
         set.append(occurrenceKey(id, occ))
         let cutoff = Date().addingTimeInterval(-3 * 86400).timeIntervalSince1970
